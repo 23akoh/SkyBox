@@ -80,12 +80,12 @@ footer { display:flex; justify-content:space-between; gap:14px; padding:12px 5% 
     <div class="intro"><p class="eyebrow">A LITTLE WINDOW TO SOMEWHERE ELSE</p><h1>Let the outside in.</h1><p>Find a city. Feel the atmosphere. Stay a while.</p></div>
     <section class="weather-card" aria-labelledby="city" id="weather-card">
       <form id="search-form" role="search">
-        <label class="sr-only" for="city-input">Search for a city, optionally with a country code</label>
+        <label class="sr-only" for="city-input">Search for a city or country</label>
         <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg>
-        <input id="city-input" type="search" placeholder="Somewhere on your mind?" maxlength="100" autocomplete="off" required aria-describedby="search-help status">
+        <input id="city-input" type="search" placeholder="City or country, e.g. Tokyo or Japan" maxlength="100" autocomplete="off" required aria-describedby="search-help status">
         <button class="search-button" id="search-button" type="submit" aria-label="Find weather">↗</button>
       </form>
-      <p class="search-help" id="search-help">Search city + country code, e.g. Paris, FR</p>
+      <p class="search-help" id="search-help">Try Tokyo, Japan or Tokyo + JP. Countries open a city within them.</p>
       <div id="locations" class="locations" aria-label="Choose a matching city" hidden></div>
       <div class="card-heading"><p class="source-badge" id="source-badge"><span></span>DEMO SCENE</p><p id="local-time">SAMPLE WEATHER</p></div>
       <div class="location"><h2 id="city">London</h2><p id="country">United Kingdom</p></div>
@@ -94,24 +94,20 @@ footer { display:flex; justify-content:space-between; gap:14px; padding:12px 5% 
       <p class="conditions" id="conditions">Light rain · Feels like 12°</p>
       <dl class="details"><div><dt>HUMIDITY</dt><dd id="humidity">82<span>%</span></dd></div><div><dt>WIND</dt><dd id="wind">11<span> km/h</span></dd></div><div><dt>VISIBILITY</dt><dd id="visibility">8<span> km</span></dd></div></dl>
       <div class="sound-row"><div><p class="sound-heading">A sound to settle into</p><p class="sound-type" id="sound-type">Soft rain · generated ambience</p></div><button id="sound-button" class="sound-button" type="button" aria-pressed="false"><span aria-hidden="true" id="play-icon">▶</span><span id="sound-label">Play sound</span></button></div>
-      <p id="status" class="status" role="status" aria-live="polite">Demo weather. Add your API key in the script section of index.html for live searches.</p>
+      <p id="status" class="status" role="status" aria-live="polite">Search a city or country for current weather. No API key needed.</p>
     </section>
     <section class="scene-picker" aria-label="Preview sample weather scenes"><p>OR DRIFT INTO A DEMO</p><div class="scene-buttons"><button type="button" data-scene="clear" aria-pressed="false">☀ <span>Sunlit</span></button><button type="button" data-scene="rain" aria-pressed="true">☂ <span>Rainy</span></button><button type="button" data-scene="snow" aria-pressed="false">❄ <span>Snowfall</span></button><button type="button" data-scene="night" aria-pressed="false">☾ <span>After dark</span></button></div></section>
   </main>
-  <footer><span>A small escape, by Audrey.</span><a href="https://openweathermap.org/" target="_blank" rel="noopener noreferrer">Weather data by OpenWeather ↗</a></footer>
+  <footer><span>A small escape, by Audrey.</span><a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer">Weather by Open-Meteo · Places by GeoNames ↗</a></footer>
   <noscript><p class="no-script">Enable JavaScript to search cities and change scenes.</p></noscript>
 <!-- AI-assisted starter; design and changes by Audrey. -->
 <script>
 "use strict";
 
-// SETUP: replace this placeholder with your OpenWeather API key to enable searches.
-// A key in browser JavaScript is visible to visitors. For public deployment,
-// move authenticated fetches to a server/serverless endpoint and keep the key there.
-const API_KEY = "YOUR_OPENWEATHER_API_KEY";
-const API_ROOT = "https://api.openweathermap.org";
+// Open-Meteo supports key-free requests for this non-commercial portfolio.
+// No API key or account setup is needed.
 const $ = (id) => document.getElementById(id);
 const sceneButtons = [...document.querySelectorAll("[data-scene]")];
-const hasKey = API_KEY !== "YOUR_OPENWEATHER_API_KEY" && API_KEY.trim() !== "";
 let activeRequest = null;
 let currentTheme = "rain";
 let precipitation = "rain";
@@ -157,8 +153,8 @@ function renderWeather(data, demo = false) {
   $("humidity").textContent = `${Math.round(data.humidity)}%`;
   $("wind").textContent = `${Math.round(data.wind)} km/h`;
   $("visibility").textContent = data.visibility == null ? "—" : `${Math.round(data.visibility * 10) / 10} km`;
-  $("source-badge").lastChild.textContent = demo ? "DEMO SCENE" : "LIVE WEATHER";
-  $("local-time").textContent = demo ? "SAMPLE WEATHER" : `${localTime(data.observedAt, data.timezone)} · OBSERVED`;
+  $("source-badge").lastChild.textContent = demo ? "DEMO SCENE" : "CURRENT WEATHER";
+  $("local-time").textContent = demo ? "SAMPLE WEATHER" : `${localTime(data.observedAt, data.timezone)} · LOCAL UPDATE`;
   $("sound-type").textContent = `${precipitation === "rain" ? "Soft rain" : "Gentle wind"} · generated ambience`;
   sceneButtons.forEach(button => button.setAttribute("aria-pressed", String(demo && button.dataset.scene === data.theme)));
   if (soundOn) tuneSound();
@@ -171,53 +167,127 @@ function localTime(unixSeconds, offsetSeconds) {
     .format(new Date((unixSeconds + offsetSeconds) * 1000));
 }
 
-function themeFor(weather) {
-  // OpenWeather icon codes end in 'd' (day) or 'n' (night) for that city.
-  if (weather.icon.endsWith("n")) return "night";
-  if (weather.id >= 200 && weather.id < 300) return "storm";
-  if (weather.id >= 300 && weather.id < 600) return "rain";
-  if (weather.id >= 600 && weather.id < 700) return "snow";
-  if (weather.id >= 700 && weather.id < 800) return "mist";
-  return weather.id === 800 ? "clear" : "clouds";
+// Country reference: GeoNames countryInfo.txt (retrieved 28 October 2026).
+// A country opens its reference city. The card always names the actual city;
+// a single temperature must never pretend to describe an entire country.
+const COUNTRIES = [["AD","AND","Andorra","Andorra la Vella"],["AE","ARE","United Arab Emirates","Abu Dhabi"],["AF","AFG","Afghanistan","Kabul"],["AG","ATG","Antigua and Barbuda","St. John's"],["AI","AIA","Anguilla","The Valley"],["AL","ALB","Albania","Tirana"],["AM","ARM","Armenia","Yerevan"],["AO","AGO","Angola","Luanda"],["AQ","ATA","Antarctica",""],["AR","ARG","Argentina","Buenos Aires"],["AS","ASM","American Samoa","Pago Pago"],["AT","AUT","Austria","Vienna"],["AU","AUS","Australia","Canberra"],["AW","ABW","Aruba","Oranjestad"],["AX","ALA","Aland Islands","Mariehamn"],["AZ","AZE","Azerbaijan","Baku"],["BA","BIH","Bosnia and Herzegovina","Sarajevo"],["BB","BRB","Barbados","Bridgetown"],["BD","BGD","Bangladesh","Dhaka"],["BE","BEL","Belgium","Brussels"],["BF","BFA","Burkina Faso","Ouagadougou"],["BG","BGR","Bulgaria","Sofia"],["BH","BHR","Bahrain","Manama"],["BI","BDI","Burundi","Gitega"],["BJ","BEN","Benin","Porto-Novo"],["BL","BLM","Saint Barthelemy","Gustavia"],["BM","BMU","Bermuda","Hamilton"],["BN","BRN","Brunei","Bandar Seri Begawan"],["BO","BOL","Bolivia","Sucre"],["BQ","BES","Bonaire, Saint Eustatius and Saba",""],["BR","BRA","Brazil","Brasilia"],["BS","BHS","Bahamas","Nassau"],["BT","BTN","Bhutan","Thimphu"],["BV","BVT","Bouvet Island",""],["BW","BWA","Botswana","Gaborone"],["BY","BLR","Belarus","Minsk"],["BZ","BLZ","Belize","Belmopan"],["CA","CAN","Canada","Ottawa"],["CC","CCK","Cocos Islands","West Island"],["CD","COD","Democratic Republic of the Congo","Kinshasa"],["CF","CAF","Central African Republic","Bangui"],["CG","COG","Republic of the Congo","Brazzaville"],["CH","CHE","Switzerland","Bern"],["CI","CIV","Ivory Coast","Yamoussoukro"],["CK","COK","Cook Islands","Avarua"],["CL","CHL","Chile","Santiago"],["CM","CMR","Cameroon","Yaounde"],["CN","CHN","China","Beijing"],["CO","COL","Colombia","Bogota"],["CR","CRI","Costa Rica","San Jose"],["CU","CUB","Cuba","Havana"],["CV","CPV","Cabo Verde","Praia"],["CW","CUW","Curacao","Willemstad"],["CX","CXR","Christmas Island","Flying Fish Cove"],["CY","CYP","Cyprus","Nicosia"],["CZ","CZE","Czechia","Prague"],["DE","DEU","Germany","Berlin"],["DJ","DJI","Djibouti","Djibouti"],["DK","DNK","Denmark","Copenhagen"],["DM","DMA","Dominica","Roseau"],["DO","DOM","Dominican Republic","Santo Domingo"],["DZ","DZA","Algeria","Algiers"],["EC","ECU","Ecuador","Quito"],["EE","EST","Estonia","Tallinn"],["EG","EGY","Egypt","Cairo"],["EH","ESH","Western Sahara","El-Aaiun"],["ER","ERI","Eritrea","Asmara"],["ES","ESP","Spain","Madrid"],["ET","ETH","Ethiopia","Addis Ababa"],["FI","FIN","Finland","Helsinki"],["FJ","FJI","Fiji","Suva"],["FK","FLK","Falkland Islands","Stanley"],["FM","FSM","Micronesia","Palikir"],["FO","FRO","Faroe Islands","Torshavn"],["FR","FRA","France","Paris"],["GA","GAB","Gabon","Libreville"],["GB","GBR","United Kingdom","London"],["GD","GRD","Grenada","St. George's"],["GE","GEO","Georgia","Tbilisi"],["GF","GUF","French Guiana","Cayenne"],["GG","GGY","Guernsey","St Peter Port"],["GH","GHA","Ghana","Accra"],["GI","GIB","Gibraltar","Gibraltar"],["GL","GRL","Greenland","Nuuk"],["GM","GMB","Gambia","Banjul"],["GN","GIN","Guinea","Conakry"],["GP","GLP","Guadeloupe","Basse-Terre"],["GQ","GNQ","Equatorial Guinea","Ciudad de la Paz"],["GR","GRC","Greece","Athens"],["GS","SGS","South Georgia and the South Sandwich Islands","Grytviken"],["GT","GTM","Guatemala","Guatemala City"],["GU","GUM","Guam","Hagatna"],["GW","GNB","Guinea-Bissau","Bissau"],["GY","GUY","Guyana","Georgetown"],["HK","HKG","Hong Kong","Hong Kong"],["HM","HMD","Heard Island and McDonald Islands",""],["HN","HND","Honduras","Tegucigalpa"],["HR","HRV","Croatia","Zagreb"],["HT","HTI","Haiti","Port-au-Prince"],["HU","HUN","Hungary","Budapest"],["ID","IDN","Indonesia","Jakarta"],["IE","IRL","Ireland","Dublin"],["IL","ISR","Israel","Jerusalem"],["IM","IMN","Isle of Man","Douglas"],["IN","IND","India","New Delhi"],["IO","IOT","British Indian Ocean Territory","Diego Garcia"],["IQ","IRQ","Iraq","Baghdad"],["IR","IRN","Iran","Tehran"],["IS","ISL","Iceland","Reykjavik"],["IT","ITA","Italy","Rome"],["JE","JEY","Jersey","Saint Helier"],["JM","JAM","Jamaica","Kingston"],["JO","JOR","Jordan","Amman"],["JP","JPN","Japan","Tokyo"],["KE","KEN","Kenya","Nairobi"],["KG","KGZ","Kyrgyzstan","Bishkek"],["KH","KHM","Cambodia","Phnom Penh"],["KI","KIR","Kiribati","Tarawa"],["KM","COM","Comoros","Moroni"],["KN","KNA","Saint Kitts and Nevis","Basseterre"],["KP","PRK","North Korea","Pyongyang"],["KR","KOR","South Korea","Seoul"],["XK","XKX","Kosovo","Pristina"],["KW","KWT","Kuwait","Kuwait City"],["KY","CYM","Cayman Islands","George Town"],["KZ","KAZ","Kazakhstan","Nur-Sultan"],["LA","LAO","Laos","Vientiane"],["LB","LBN","Lebanon","Beirut"],["LC","LCA","Saint Lucia","Castries"],["LI","LIE","Liechtenstein","Vaduz"],["LK","LKA","Sri Lanka","Colombo"],["LR","LBR","Liberia","Monrovia"],["LS","LSO","Lesotho","Maseru"],["LT","LTU","Lithuania","Vilnius"],["LU","LUX","Luxembourg","Luxembourg"],["LV","LVA","Latvia","Riga"],["LY","LBY","Libya","Tripoli"],["MA","MAR","Morocco","Rabat"],["MC","MCO","Monaco","Monaco"],["MD","MDA","Moldova","Chisinau"],["ME","MNE","Montenegro","Podgorica"],["MF","MAF","Saint Martin","Marigot"],["MG","MDG","Madagascar","Antananarivo"],["MH","MHL","Marshall Islands","Majuro"],["MK","MKD","North Macedonia","Skopje"],["ML","MLI","Mali","Bamako"],["MM","MMR","Myanmar","Nay Pyi Taw"],["MN","MNG","Mongolia","Ulaanbaatar"],["MO","MAC","Macao","Macao"],["MP","MNP","Northern Mariana Islands","Saipan"],["MQ","MTQ","Martinique","Fort-de-France"],["MR","MRT","Mauritania","Nouakchott"],["MS","MSR","Montserrat","Plymouth"],["MT","MLT","Malta","Valletta"],["MU","MUS","Mauritius","Port Louis"],["MV","MDV","Maldives","Male"],["MW","MWI","Malawi","Lilongwe"],["MX","MEX","Mexico","Mexico City"],["MY","MYS","Malaysia","Kuala Lumpur"],["MZ","MOZ","Mozambique","Maputo"],["NA","NAM","Namibia","Windhoek"],["NC","NCL","New Caledonia","Noumea"],["NE","NER","Niger","Niamey"],["NF","NFK","Norfolk Island","Kingston"],["NG","NGA","Nigeria","Abuja"],["NI","NIC","Nicaragua","Managua"],["NL","NLD","The Netherlands","Amsterdam"],["NO","NOR","Norway","Oslo"],["NP","NPL","Nepal","Kathmandu"],["NR","NRU","Nauru","Yaren"],["NU","NIU","Niue","Alofi"],["NZ","NZL","New Zealand","Wellington"],["OM","OMN","Oman","Muscat"],["PA","PAN","Panama","Panama City"],["PE","PER","Peru","Lima"],["PF","PYF","French Polynesia","Papeete"],["PG","PNG","Papua New Guinea","Port Moresby"],["PH","PHL","Philippines","Manila"],["PK","PAK","Pakistan","Islamabad"],["PL","POL","Poland","Warsaw"],["PM","SPM","Saint Pierre and Miquelon","Saint-Pierre"],["PN","PCN","Pitcairn","Adamstown"],["PR","PRI","Puerto Rico","San Juan"],["PS","PSE","Palestinian Territory","East Jerusalem"],["PT","PRT","Portugal","Lisbon"],["PW","PLW","Palau","Melekeok"],["PY","PRY","Paraguay","Asuncion"],["QA","QAT","Qatar","Doha"],["RE","REU","Reunion","Saint-Denis"],["RO","ROU","Romania","Bucharest"],["RS","SRB","Serbia","Belgrade"],["RU","RUS","Russia","Moscow"],["RW","RWA","Rwanda","Kigali"],["SA","SAU","Saudi Arabia","Riyadh"],["SB","SLB","Solomon Islands","Honiara"],["SC","SYC","Seychelles","Victoria"],["SD","SDN","Sudan","Khartoum"],["SS","SSD","South Sudan","Juba"],["SE","SWE","Sweden","Stockholm"],["SG","SGP","Singapore","Singapore"],["SH","SHN","Saint Helena","Jamestown"],["SI","SVN","Slovenia","Ljubljana"],["SJ","SJM","Svalbard and Jan Mayen","Longyearbyen"],["SK","SVK","Slovakia","Bratislava"],["SL","SLE","Sierra Leone","Freetown"],["SM","SMR","San Marino","San Marino"],["SN","SEN","Senegal","Dakar"],["SO","SOM","Somalia","Mogadishu"],["SR","SUR","Suriname","Paramaribo"],["ST","STP","Sao Tome and Principe","Sao Tome"],["SV","SLV","El Salvador","San Salvador"],["SX","SXM","Sint Maarten","Philipsburg"],["SY","SYR","Syria","Damascus"],["SZ","SWZ","Eswatini","Mbabane"],["TC","TCA","Turks and Caicos Islands","Cockburn Town"],["TD","TCD","Chad","N'Djamena"],["TF","ATF","French Southern Territories","Port-aux-Francais"],["TG","TGO","Togo","Lome"],["TH","THA","Thailand","Bangkok"],["TJ","TJK","Tajikistan","Dushanbe"],["TK","TKL","Tokelau",""],["TL","TLS","Timor Leste","Dili"],["TM","TKM","Turkmenistan","Ashgabat"],["TN","TUN","Tunisia","Tunis"],["TO","TON","Tonga","Nuku'alofa"],["TR","TUR","Turkey","Ankara"],["TT","TTO","Trinidad and Tobago","Port of Spain"],["TV","TUV","Tuvalu","Funafuti"],["TW","TWN","Taiwan","Taipei"],["TZ","TZA","Tanzania","Dodoma"],["UA","UKR","Ukraine","Kyiv"],["UG","UGA","Uganda","Kampala"],["UM","UMI","United States Minor Outlying Islands",""],["US","USA","United States","Washington"],["UY","URY","Uruguay","Montevideo"],["UZ","UZB","Uzbekistan","Tashkent"],["VA","VAT","Vatican","Vatican City"],["VC","VCT","Saint Vincent and the Grenadines","Kingstown"],["VE","VEN","Venezuela","Caracas"],["VG","VGB","British Virgin Islands","Road Town"],["VI","VIR","U.S. Virgin Islands","Charlotte Amalie"],["VN","VNM","Vietnam","Hanoi"],["VU","VUT","Vanuatu","Port Vila"],["WF","WLF","Wallis and Futuna","Mata Utu"],["WS","WSM","Samoa","Apia"],["YE","YEM","Yemen","Sanaa"],["YT","MYT","Mayotte","Mamoudzou"],["ZA","ZAF","South Africa","Pretoria"],["ZM","ZMB","Zambia","Lusaka"],["ZW","ZWE","Zimbabwe","Harare"]];
+const countryNames = new Intl.DisplayNames(["en"], { type:"region" });
+const normalize = text => text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
+function findCountry(text) {
+  const aliases = { uk:"GB", britain:"GB", greatbritain:"GB", usa:"US", unitedstatesofamerica:"US", southkorea:"KR", northkorea:"KP" };
+  const name = normalize(text);
+  const alias = aliases[name];
+  return COUNTRIES.find(([code, iso3, label]) =>
+    code === alias || [code, iso3, label, countryNames.of(code)].some(value => normalize(value) === name));
 }
 
-async function fetchJSON(path, parameters, signal) {
-  const url = new URL(path, API_ROOT);
-  url.search = new URLSearchParams({ ...parameters, appid:API_KEY });
-  // fetch starts an HTTP request and immediately returns a Promise.
-  // await pauses THIS async function until a response arrives; the UI stays usable.
+const weatherDescriptions = {
+  0:"Clear sky", 1:"Mainly clear", 2:"Partly cloudy", 3:"Overcast", 45:"Fog", 48:"Rime fog",
+  51:"Light drizzle", 53:"Moderate drizzle", 55:"Dense drizzle", 56:"Freezing drizzle", 57:"Freezing drizzle",
+  61:"Light rain", 63:"Moderate rain", 65:"Heavy rain", 66:"Freezing rain", 67:"Freezing rain",
+  71:"Light snow", 73:"Moderate snow", 75:"Heavy snow", 77:"Snow grains",
+  80:"Rain showers", 81:"Moderate rain showers", 82:"Heavy rain showers", 85:"Snow showers", 86:"Heavy snow showers",
+  95:"Thunderstorm", 96:"Thunderstorm with hail", 97:"Heavy thunderstorm", 99:"Thunderstorm with hail"
+};
+function conditionFor(code, isDay) {
+  let theme = "clouds", precipitation = "none";
+  if ([95,96,97,99].includes(code)) { theme = "storm"; precipitation = "rain"; }
+  else if ([71,73,75,77,85,86].includes(code)) { theme = "snow"; precipitation = "snow"; }
+  else if ([51,53,55,56,57,61,63,65,66,67,80,81,82].includes(code)) { theme = "rain"; precipitation = "rain"; }
+  else if ([45,48].includes(code)) theme = "mist";
+  else if (code <= 1) theme = "clear";
+  return { theme:isDay === 0 ? "night" : theme, precipitation };
+}
+
+async function fetchJSON(endpoint, parameters, signal) {
+  const url = new URL(endpoint);
+  url.search = new URLSearchParams(parameters);
+  // fetch starts an HTTP request and returns a Promise. await pauses this
+  // function, while the rest of the page remains responsive.
   const response = await fetch(url, { signal });
-  // fetch only rejects automatically for network/abort failures, not HTTP errors.
+  // HTTP errors do not reject fetch automatically, so check the response first.
   if (!response.ok) {
-    if (response.status === 401) throw new Error("Your API key was not accepted. Check the key and whether it is active.");
-    if (response.status === 429) throw new Error("The API request limit was reached. Try again later.");
-    throw new Error(`Weather service unavailable (${response.status}). Try again shortly.`);
+    if (response.status === 429) throw new Error("The weather service is busy. Please try again shortly.");
+    throw new Error(`Weather service unavailable (${response.status}). Please try again.`);
   }
-  // JSON decoding is also asynchronous, so we await it before reading its fields.
+  // Reading the JSON body is asynchronous too. Wait before accessing its fields.
   return await response.json();
 }
 
-async function loadLocation(place, signal) {
-  // First find coordinates, then request current weather in metric units.
-  const data = await fetchJSON("/data/2.5/weather", { lat:place.lat, lon:place.lon, units:"metric" }, signal);
-  if (signal.aborted) return; // An older result must not overwrite a newer scene.
-  const weather = data.weather?.[0];
-  if (!weather || !Number.isFinite(weather.id) || typeof weather.icon !== "string" ||
-      ![data.main?.temp, data.main?.feels_like, data.main?.humidity, data.wind?.speed, data.dt, data.timezone].every(Number.isFinite)) {
+async function loadLocation(place, signal, countrySearch = null) {
+  const data = await fetchJSON("https://api.open-meteo.com/v1/forecast", {
+    latitude:place.latitude, longitude:place.longitude,
+    current:"temperature_2m,relative_humidity_2m,apparent_temperature,is_day,weather_code,wind_speed_10m,visibility",
+    temperature_unit:"celsius", wind_speed_unit:"kmh", timezone:"auto", timeformat:"unixtime", forecast_days:1
+  }, signal);
+  if (signal.aborted) return; // An older response cannot replace a newer scene.
+  const current = data.current;
+  if (!current || ![current.temperature_2m, current.apparent_temperature, current.relative_humidity_2m,
+      current.wind_speed_10m, current.weather_code, current.is_day, current.time, data.utc_offset_seconds].every(Number.isFinite)) {
     throw new Error("The weather service returned incomplete data. Please try again.");
   }
-  const countries = new Intl.DisplayNames(["en"], { type:"region" });
   renderWeather({
-    city:place.name, country:[place.state, countries.of(place.country)].filter(Boolean).join(", "),
-    temp:data.main.temp, feels:data.main.feels_like, humidity:data.main.humidity,
-    wind:data.wind.speed * 3.6, // Metric API wind is m/s; the card displays km/h.
-    visibility:Number.isFinite(data.visibility) ? data.visibility / 1000 : null,
-    description:weather.description, theme:themeFor(weather),
-    precipitation:weather.id >= 200 && weather.id < 600 ? "rain" : weather.id >= 600 && weather.id < 700 ? "snow" : "none",
-    observedAt:data.dt, timezone:data.timezone
+    city:place.name, country:[place.admin1, place.country || countryNames.of(place.country_code)].filter(Boolean).join(", "),
+    temp:current.temperature_2m, feels:current.apparent_temperature, humidity:current.relative_humidity_2m,
+    wind:current.wind_speed_10m,
+    visibility:Number.isFinite(current.visibility) ? current.visibility / 1000 : null,
+    description:weatherDescriptions[current.weather_code] || "Current conditions",
+    ...conditionFor(current.weather_code, current.is_day), observedAt:current.time, timezone:data.utc_offset_seconds
   });
   $("locations").hidden = true;
-  setStatus("Current weather from OpenWeather. Search again to refresh.");
+  const note = countrySearch ? `Showing ${place.name} in ${countrySearch[2]}. Search a city for another location. ` : "";
+  setStatus(`${note}Current conditions from Open-Meteo weather models. Search again to refresh.`);
+}
+
+async function searchPlaces(query, signal) {
+  // Accept everyday input: "Japan", "Tokyo", "Tokyo, Japan" and "Tokyo + JP".
+  const cleaned = query.replace(/\s*\+\s*/g, ", ");
+  const countrySearch = findCountry(cleaned);
+  if (countrySearch && !countrySearch[3]) throw new Error(`Please search for a town or station in ${countrySearch[2]}.`);
+  const parts = cleaned.split(",").map(part => part.trim());
+  const qualifierCountry = parts.length === 2 ? findCountry(parts[1]) : null;
+  const parameters = { name:countrySearch ? countrySearch[3] : cleaned, count:10, language:"en", format:"json" };
+  if (countrySearch) parameters.countryCode = countrySearch[0];
+  else if (qualifierCountry) { parameters.name = parts[0]; parameters.countryCode = qualifierCountry[0]; }
+  else if (parts.length === 2 && /^[a-z]{2}$/i.test(parts[1])) {
+    parameters.name = parts[0]; parameters.countryCode = parts[1].toUpperCase() === "UK" ? "GB" : parts[1].toUpperCase();
+  }
+  let data = await fetchJSON("https://geocoding-api.open-meteo.com/v1/search", parameters, signal);
+  if (signal.aborted) return;
+  let suggested = false;
+  // If a multi-word city has a spelling mistake, offer matches from its first
+  // word within the requested country. Never silently switch to a guessed city.
+  if (!data.results?.length && !countrySearch && qualifierCountry && parts[0].includes(" ")) {
+    const firstWord = parts[0].split(/\s+/)[0];
+    if (firstWord.length >= 3) {
+      data = await fetchJSON("https://geocoding-api.open-meteo.com/v1/search", { ...parameters, name:firstWord }, signal);
+      if (signal.aborted) return;
+      suggested = true;
+    }
+  }
+  const results = Array.isArray(data.results) ? data.results : [];
+  // Prefer populated places over similarly named mountains, airports and parks.
+  const towns = results.filter(place => place.feature_code?.startsWith("PPL"));
+  const places = towns.length ? towns : results;
+  if (!places.length) throw new Error("No location found. Try a city such as Tokyo, or a country such as Japan.");
+  if (countrySearch) {
+    const place = places.find(place => place.feature_code === "PPLC") || places[0];
+    return await loadLocation(place, signal, countrySearch);
+  }
+  if (places.length === 1 && !suggested) return await loadLocation(places[0], signal);
+  $("locations").replaceChildren();
+  for (const place of places) {
+    const button = document.createElement("button"); button.type = "button";
+    button.textContent = [place.name, place.admin1, place.country].filter(Boolean).join(", ");
+    button.addEventListener("click", () => {
+      $("locations").hidden = true; $("city-input").focus();
+      runRequest(nextSignal => loadLocation(place, nextSignal));
+    });
+    $("locations").append(button);
+  }
+  $("locations").hidden = false;
+  setStatus(suggested ? "No exact match. Did you mean one of these cities? Choose above." : "Choose a matching city above.");
+  $("locations").querySelector("button").focus();
 }
 
 async function runRequest(work) {
@@ -238,42 +308,19 @@ async function runRequest(work) {
   }
 }
 
-$("search-form").addEventListener("submit", (event) => {
+$("search-form").addEventListener("submit", event => {
   event.preventDefault();
-  const city = $("city-input").value.trim();
-  if (!city) { setStatus("Type a city to open its window.", true); return; }
-  if (!hasKey) { setStatus("Add your OpenWeather API key in the script section of index.html, then reload to search live weather. The buttons below preview demo scenes.", true); return; }
+  const query = $("city-input").value.trim();
+  if (query.length < 2) { setStatus("Type a city or country with at least two letters.", true); return; }
   $("locations").hidden = true;
-  runRequest(async (signal) => {
-    // Geocoding converts a name to coordinates. URLSearchParams safely encodes spaces
-    // and accents. We offer matches instead of guessing which 'Paris' you meant.
-    const places = await fetchJSON("/geo/1.0/direct", { q:city, limit:5 }, signal);
-    if (signal.aborted) return;
-    if (!Array.isArray(places) || places.length === 0) throw new Error("No city found. Try a city and country code, such as London, GB.");
-    if (places.length === 1) return await loadLocation(places[0], signal);
-    $("locations").replaceChildren();
-    for (const place of places) {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.textContent = [place.name, place.state, place.country].filter(Boolean).join(", ");
-      button.addEventListener("click", () => {
-        $("locations").hidden = true;
-        $("city-input").focus();
-        runRequest((nextSignal) => loadLocation(place, nextSignal));
-      });
-      $("locations").append(button);
-    }
-    $("locations").hidden = false;
-    setStatus("Choose a matching city above.");
-    $("locations").querySelector("button").focus();
-  });
+  runRequest(signal => searchPlaces(query, signal));
 });
 
 sceneButtons.forEach(button => button.addEventListener("click", () => {
   activeRequest?.abort(); activeRequest = null; setBusy(false);
   $("locations").hidden = true;
   renderWeather(demos[button.dataset.scene], true);
-  setStatus(hasKey ? "Demo scene — sample data. Search a city for live weather." : "Demo weather. Add your API key in the script section of index.html for live searches.");
+  setStatus("Demo scene — sample data. Search a city or country for current weather.");
 }));
 
 // Optional sound: generate a quiet loop of filtered noise with the Web Audio API.
