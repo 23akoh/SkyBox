@@ -1,1 +1,335 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#324d63">
+  <meta name="description" content="A little window to somewhere else. Search a city and settle into its weather.">
+  <title>SkyBox — a virtual window</title>
+  <style>
+/* The DOM sets data-theme on <body>. Each theme changes these same variables. */
+:root { color-scheme: dark; --sky-top:#293f58; --sky-bottom:#9cabb0; --sun:#cad5d8; --hill-back:#647d86; --hill-front:#405f6b; --accent:#d7e5e7; }
+* { box-sizing:border-box; }
+body { margin:0; min-height:100svh; color:#f6f7f5; background:var(--sky-top); font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+body[data-theme="clear"] { --sky-top:#876253; --sky-bottom:#e5bc85; --sun:#ffe3a3; --hill-back:#8b8867; --hill-front:#5b715f; --accent:#ffe3b6; }
+body[data-theme="clouds"] { --sky-top:#47546b; --sky-bottom:#abb9bd; --sun:#c2ced4; --hill-back:#7c9294; --hill-front:#506e78; }
+body[data-theme="snow"] { --sky-top:#526980; --sky-bottom:#c7d7dc; --sun:#edf0e7; --hill-back:#b9ced1; --hill-front:#718f9d; --accent:#e0f0f5; }
+body[data-theme="mist"] { --sky-top:#606e76; --sky-bottom:#b9c6c1; --sun:#d2d9cd; --hill-back:#879e98; --hill-front:#5f7c7c; }
+body[data-theme="storm"] { --sky-top:#242b45; --sky-bottom:#67768a; --sun:#a7b6ca; --hill-back:#485b73; --hill-front:#304259; }
+body[data-theme="night"] { --sky-top:#0e172c; --sky-bottom:#3a4868; --sun:#e9e5ce; --hill-back:#28394f; --hill-front:#182c3f; --accent:#d5ddff; }
+button,input,a { -webkit-tap-highlight-color:transparent; }
+button,input { font:inherit; }
+button,a { touch-action:manipulation; }
+button { cursor:pointer; color:inherit; }
+button:focus-visible,a:focus-visible,input:focus-visible { outline:2px solid #fff; outline-offset:5px; }
+button:disabled { cursor:wait; opacity:.5; }
+a { color:inherit; }
+.landscape { position:fixed; inset:0; overflow:hidden; z-index:-1; background:linear-gradient(170deg,var(--sky-top),var(--sky-bottom)); transition:background 1s; }
+.celestial { position:absolute; width:180px; height:180px; top:15%; right:16%; border-radius:50%; background:var(--sun); opacity:.4; box-shadow:0 0 120px 45px var(--sun); transition:all 1.4s; }
+[data-theme="clear"] .celestial { opacity:.8; top:16%; }
+[data-theme="night"] .celestial { width:65px; height:65px; opacity:.9; box-shadow:0 0 70px 3px #d6deff25; }
+.cloud { position:absolute; width:65vw; height:18vh; background:#edf4f329; border-radius:50%; filter:blur(35px); animation:drift 35s ease-in-out infinite alternate; }
+.cloud-one { top:18%; left:-15%; }.cloud-two { top:42%; right:-28%; animation-delay:-16s; }
+[data-theme="clear"] .cloud { opacity:.35; } [data-theme="night"] .cloud { opacity:.15; }
+.hill { position:absolute; border-radius:50% 50% 0 0; width:145%; height:38vh; transform:rotate(-9deg); bottom:-14vh; left:-18%; background:var(--hill-back); filter:blur(3px); transition:background 1.4s; }
+.hill-front { background:var(--hill-front); transform:rotate(10deg); left:-4%; bottom:-24vh; height:40vh; filter:blur(1px); }
+.grain { position:absolute; inset:0; opacity:.035; background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Cpath fill='white' filter='url(%23n)' d='M0 0h180v180H0z'/%3E%3C/svg%3E"); }
+.particles { position:absolute; inset:0; pointer-events:none; opacity:0; }
+[data-precipitation="rain"] .particles,[data-precipitation="snow"] .particles { opacity:1; }
+.particle { position:absolute; top:-10%; left:var(--x); width:1px; height:32px; background:linear-gradient(transparent,#fff5); animation:fall var(--duration) var(--delay) linear infinite; }
+[data-precipitation="snow"] .particle { width:4px; height:4px; border-radius:50%; background:#fffb; animation-duration:calc(var(--duration) * 7); }
+.masthead { max-width:1500px; margin:auto; padding:30px 5%; display:flex; align-items:center; justify-content:space-between; }
+.wordmark { text-decoration:none; font-family:Georgia,serif; font-size:28px; letter-spacing:-1.4px; display:flex; gap:10px; align-items:center; }.wordmark-dot { margin-left:-9px; color:var(--accent); }
+.window-mark { width:18px; height:24px; border:1px solid #ffffffad; border-radius:10px 10px 1px 1px; background:linear-gradient(90deg,transparent 47%,#ffffffad 48% 52%,transparent 53%); }
+.edition,.eyebrow,.scene-picker>p { letter-spacing:2.6px; font-size:10px; font-weight:500; }.edition { opacity:.78; }
+main { width:min(560px,calc(100% - 36px)); margin:15px auto 50px; }
+.intro { text-align:center; margin-bottom:28px; }.intro .eyebrow { opacity:.78; margin:0 0 10px; }.intro h1 { font:normal clamp(34px,6vw,48px)/1.2 Georgia,serif; letter-spacing:-1.6px; margin:0 0 12px; }.intro>p:last-child { font-size:13px; opacity:.8; }
+.weather-card { background:linear-gradient(145deg,#ffffff21,#ffffff0a); border:1px solid #ffffff40; border-radius:24px; padding:26px 30px 18px; backdrop-filter:blur(28px); -webkit-backdrop-filter:blur(28px); box-shadow:0 24px 80px #0c213625,inset 0 1px #ffffff16; }
+form { display:flex; align-items:center; padding:6px 7px 6px 15px; background:#14253829; border:1px solid #ffffff2b; border-radius:11px; gap:10px; }form:focus-within { border-color:#ffffff99; }
+.search-icon { width:19px; flex-shrink:0; opacity:.8; }input { min-width:0; width:100%; border:0; background:none; color:#fff; padding:7px 0; outline:none; font-size:13px; }input::placeholder { color:#f1f6f6b3; }
+.search-button { font-size:23px; border:0; border-radius:7px; background:#ffffff1a; width:36px; height:36px; flex-shrink:0; }.search-button:hover { background:#ffffff30; }
+.search-help { font-size:10px; opacity:.7; margin:7px 0 22px 2px; }
+.card-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:9px; letter-spacing:1.2px; }.card-heading p { margin:0; }.source-badge { display:flex; gap:7px; align-items:center; }.source-badge span { width:5px; height:5px; background:var(--accent); border-radius:50%; }
+.location { text-align:center; margin-top:24px; }.location h2 { font:normal 30px/1.25 Georgia,serif; margin:0; overflow-wrap:anywhere; }.location p { margin:5px 0 0; opacity:.7; font-size:12px; }
+.temperature-row { position:relative; display:flex; align-items:center; justify-content:center; margin:4px 0 0; }.temperature { font:normal clamp(100px,22vw,130px)/1.2 Georgia,serif; letter-spacing:-8px; margin:0; }.degrees { font-size:.65em; vertical-align:top; line-height:1.5; }.unit { font:13px/1 sans-serif; letter-spacing:0; margin-left:-15px; opacity:.7; }.weather-symbol { font-size:36px; font-family:Georgia,serif; margin-right:23px; color:var(--accent); opacity:.9; }
+.description { font:italic 21px/1.4 Georgia,serif; text-align:center; margin:0 0 6px; }.conditions { text-align:center; margin:0; font-size:12px; opacity:.75; text-transform:capitalize; }
+.details { display:grid; grid-template-columns:repeat(3,1fr); text-align:center; margin:25px 0; padding:21px 0; border-block:1px solid #ffffff26; }.details>div+div { border-left:1px solid #ffffff26; }.details dt { font-size:9px; letter-spacing:1.4px; opacity:.7; margin-bottom:6px; }.details dd { margin:0; font-size:19px; font-weight:300; }.details dd span { font-size:11px; opacity:.75; }
+.sound-row { display:flex; align-items:center; justify-content:space-between; gap:12px; }.sound-row p { margin:0; }.sound-heading { font-size:12px; }.sound-type { font-size:10px; opacity:.65; margin-top:3px!important; }.sound-button { display:flex; align-items:center; justify-content:center; gap:9px; padding:10px 13px; background:#ffffff12; border:1px solid #ffffff40; border-radius:100px; font-size:11px; white-space:nowrap; }.sound-button:hover,.sound-button[aria-pressed="true"] { background:#ffffff26; }
+.status { font-size:10px; color:#f4f4f0; opacity:.8; text-align:center; margin:18px 0 0; min-height:15px; }.status[data-error="true"] { color:#ffe1c4; opacity:1; }
+.scene-picker { text-align:center; margin-top:24px; }.scene-picker>p { opacity:.75; letter-spacing:2px; font-size:9px; margin-bottom:13px; }.scene-buttons { display:flex; justify-content:center; gap:8px; }.scene-buttons button { display:flex; align-items:center; gap:7px; border:1px solid #ffffff24; background:#15283b24; border-radius:50px; padding:8px 13px; font-size:13px; }.scene-buttons button span { font-size:11px; }.scene-buttons button:hover,.scene-buttons button[aria-pressed="true"] { background:#ffffff1f; border-color:#ffffff75; }
+.locations { margin:10px 0 18px; }.locations button { display:block; width:100%; text-align:left; background:#15283b80; border:1px solid #ffffff30; padding:10px; border-radius:6px; margin:5px 0; }.locations button:hover { background:#ffffff25; }
+footer { display:flex; justify-content:space-between; gap:14px; padding:12px 5% 24px; font-size:10px; color:#fff; opacity:.75; }footer a { text-decoration:none; }footer a:hover { text-decoration:underline; }
+.sr-only { position:absolute; width:1px; height:1px; padding:0; overflow:hidden; clip-path:inset(50%); white-space:nowrap; border:0; }.no-script { text-align:center; }
+@keyframes drift { to { transform:translateX(14vw); } }@keyframes fall { to { transform:translate(-60px,120vh); } }
+@media(max-width:480px) { .masthead { padding:22px 22px; }.edition { font-size:8px; letter-spacing:1.5px; }main { margin-top:18px; }.weather-card { padding:22px 20px 18px; }.intro .eyebrow { font-size:8px; letter-spacing:2px; }.scene-buttons { gap:6px; }.scene-buttons button { padding:8px 10px; gap:5px; }footer { padding-inline:22px; flex-wrap:wrap; }.sound-button { padding:10px; } }
+@media(prefers-reduced-motion:reduce) { *,*::before,*::after { animation:none!important; transition:none!important; }.particles { display:none; } }
 
+  </style>
+</head>
+<body data-theme="rain" data-precipitation="rain">
+  <div class="landscape" aria-hidden="true">
+    <div class="celestial"></div><div class="cloud cloud-one"></div><div class="cloud cloud-two"></div>
+    <div class="hill hill-back"></div><div class="hill hill-front"></div>
+    <div class="particles" id="particles"></div><div class="grain"></div>
+  </div>
+  <header class="masthead">
+    <a class="wordmark" href="./" aria-label="SkyBox home"><span class="window-mark" aria-hidden="true"></span>skybox<span class="wordmark-dot">.</span></a>
+    <span class="edition">A VIRTUAL WINDOW</span>
+  </header>
+  <main>
+    <div class="intro"><p class="eyebrow">A LITTLE WINDOW TO SOMEWHERE ELSE</p><h1>Let the outside in.</h1><p>Find a city. Feel the atmosphere. Stay a while.</p></div>
+    <section class="weather-card" aria-labelledby="city" id="weather-card">
+      <form id="search-form" role="search">
+        <label class="sr-only" for="city-input">Search for a city, optionally with a country code</label>
+        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg>
+        <input id="city-input" type="search" placeholder="Somewhere on your mind?" maxlength="100" autocomplete="off" required aria-describedby="search-help status">
+        <button class="search-button" id="search-button" type="submit" aria-label="Find weather">↗</button>
+      </form>
+      <p class="search-help" id="search-help">Search city + country code, e.g. Paris, FR</p>
+      <div id="locations" class="locations" aria-label="Choose a matching city" hidden></div>
+      <div class="card-heading"><p class="source-badge" id="source-badge"><span></span>DEMO SCENE</p><p id="local-time">SAMPLE WEATHER</p></div>
+      <div class="location"><h2 id="city">London</h2><p id="country">United Kingdom</p></div>
+      <div class="temperature-row"><span class="weather-symbol" id="weather-symbol" aria-hidden="true">☂</span><p class="temperature"><span id="temperature">14</span><span class="degrees">°</span><span class="unit">C</span></p></div>
+      <p class="description" id="description">A little rain, a slower pace.</p>
+      <p class="conditions" id="conditions">Light rain · Feels like 12°</p>
+      <dl class="details"><div><dt>HUMIDITY</dt><dd id="humidity">82<span>%</span></dd></div><div><dt>WIND</dt><dd id="wind">11<span> km/h</span></dd></div><div><dt>VISIBILITY</dt><dd id="visibility">8<span> km</span></dd></div></dl>
+      <div class="sound-row"><div><p class="sound-heading">A sound to settle into</p><p class="sound-type" id="sound-type">Soft rain · generated ambience</p></div><button id="sound-button" class="sound-button" type="button" aria-pressed="false"><span aria-hidden="true" id="play-icon">▶</span><span id="sound-label">Play sound</span></button></div>
+      <p id="status" class="status" role="status" aria-live="polite">Demo weather. Add your API key in the script section of index.html for live searches.</p>
+    </section>
+    <section class="scene-picker" aria-label="Preview sample weather scenes"><p>OR DRIFT INTO A DEMO</p><div class="scene-buttons"><button type="button" data-scene="clear" aria-pressed="false">☀ <span>Sunlit</span></button><button type="button" data-scene="rain" aria-pressed="true">☂ <span>Rainy</span></button><button type="button" data-scene="snow" aria-pressed="false">❄ <span>Snowfall</span></button><button type="button" data-scene="night" aria-pressed="false">☾ <span>After dark</span></button></div></section>
+  </main>
+  <footer><span>A small escape, by Audrey.</span><a href="https://openweathermap.org/" target="_blank" rel="noopener noreferrer">Weather data by OpenWeather ↗</a></footer>
+  <noscript><p class="no-script">Enable JavaScript to search cities and change scenes.</p></noscript>
+<!-- AI-assisted starter; design and changes by Audrey. -->
+<script>
+"use strict";
+
+// SETUP: replace this placeholder with your OpenWeather API key to enable searches.
+// A key in browser JavaScript is visible to visitors. For public deployment,
+// move authenticated fetches to a server/serverless endpoint and keep the key there.
+const API_KEY = "YOUR_OPENWEATHER_API_KEY";
+const API_ROOT = "https://api.openweathermap.org";
+const $ = (id) => document.getElementById(id);
+const sceneButtons = [...document.querySelectorAll("[data-scene]")];
+const hasKey = API_KEY !== "YOUR_OPENWEATHER_API_KEY" && API_KEY.trim() !== "";
+let activeRequest = null;
+let currentTheme = "rain";
+let precipitation = "rain";
+let audioContext, noiseSource, soundFilter, soundGain;
+let soundOn = false;
+
+// These are invented design samples, never live observations or forecasts.
+const demos = {
+  clear: { city:"Lisbon", country:"Portugal", temp:25, feels:26, humidity:48, wind:9, visibility:10, description:"Clear sky", theme:"clear", precipitation:"none" },
+  rain: { city:"London", country:"United Kingdom", temp:14, feels:12, humidity:82, wind:11, visibility:8, description:"Light rain", theme:"rain", precipitation:"rain" },
+  snow: { city:"Reykjavík", country:"Iceland", temp:-2, feels:-6, humidity:88, wind:17, visibility:4, description:"Light snow", theme:"snow", precipitation:"snow" },
+  night: { city:"Kyoto", country:"Japan", temp:18, feels:18, humidity:65, wind:6, visibility:10, description:"Clear night", theme:"night", precipitation:"none" }
+};
+const moods = { clear:"A little sunshine, nowhere to rush.", rain:"A little rain, a slower pace.", snow:"The world, turned down a little.", night:"Somewhere, the city is dreaming.", clouds:"A softer shade of sky.", mist:"The edges of the world, softened.", storm:"A wild sky. A quiet moment." };
+const symbols = { clear:"☀", rain:"☂", snow:"❄", night:"☾", clouds:"☁", mist:"≋", storm:"ϟ" };
+
+function setStatus(message, error = false) {
+  $("status").textContent = message;
+  $("status").dataset.error = String(error);
+}
+
+function setBusy(busy) {
+  $("weather-card").setAttribute("aria-busy", String(busy));
+  $("search-button").disabled = busy;
+  $("search-button").textContent = busy ? "…" : "↗";
+}
+
+// Rendering is separate from fetching: sample and live data use the same UI.
+function renderWeather(data, demo = false) {
+  currentTheme = data.theme;
+  precipitation = data.precipitation;
+  // Changing data-theme makes the matching CSS selector apply its colour variables.
+  // Night controls the sky, while data-precipitation keeps nighttime rain/snow visible.
+  document.body.dataset.theme = currentTheme;
+  document.body.dataset.precipitation = precipitation;
+  $("city").textContent = data.city;
+  $("country").textContent = data.country;
+  $("temperature").textContent = Math.round(data.temp);
+  $("weather-symbol").textContent = symbols[currentTheme];
+  $("description").textContent = moods[currentTheme];
+  $("conditions").textContent = `${data.description} · Feels like ${Math.round(data.feels)}°`;
+  // textContent treats API values as text, so they cannot inject HTML.
+  $("humidity").textContent = `${Math.round(data.humidity)}%`;
+  $("wind").textContent = `${Math.round(data.wind)} km/h`;
+  $("visibility").textContent = data.visibility == null ? "—" : `${Math.round(data.visibility * 10) / 10} km`;
+  $("source-badge").lastChild.textContent = demo ? "DEMO SCENE" : "LIVE WEATHER";
+  $("local-time").textContent = demo ? "SAMPLE WEATHER" : `${localTime(data.observedAt, data.timezone)} · OBSERVED`;
+  $("sound-type").textContent = `${precipitation === "rain" ? "Soft rain" : "Gentle wind"} · generated ambience`;
+  sceneButtons.forEach(button => button.setAttribute("aria-pressed", String(demo && button.dataset.scene === data.theme)));
+  if (soundOn) tuneSound();
+}
+
+function localTime(unixSeconds, offsetSeconds) {
+  // The API returns a city-specific UTC offset. Shift the timestamp and format in
+  // UTC so your own computer's timezone cannot accidentally shift it a second time.
+  return new Intl.DateTimeFormat("en-GB", { hour:"2-digit", minute:"2-digit", timeZone:"UTC" })
+    .format(new Date((unixSeconds + offsetSeconds) * 1000));
+}
+
+function themeFor(weather) {
+  // OpenWeather icon codes end in 'd' (day) or 'n' (night) for that city.
+  if (weather.icon.endsWith("n")) return "night";
+  if (weather.id >= 200 && weather.id < 300) return "storm";
+  if (weather.id >= 300 && weather.id < 600) return "rain";
+  if (weather.id >= 600 && weather.id < 700) return "snow";
+  if (weather.id >= 700 && weather.id < 800) return "mist";
+  return weather.id === 800 ? "clear" : "clouds";
+}
+
+async function fetchJSON(path, parameters, signal) {
+  const url = new URL(path, API_ROOT);
+  url.search = new URLSearchParams({ ...parameters, appid:API_KEY });
+  // fetch starts an HTTP request and immediately returns a Promise.
+  // await pauses THIS async function until a response arrives; the UI stays usable.
+  const response = await fetch(url, { signal });
+  // fetch only rejects automatically for network/abort failures, not HTTP errors.
+  if (!response.ok) {
+    if (response.status === 401) throw new Error("Your API key was not accepted. Check the key and whether it is active.");
+    if (response.status === 429) throw new Error("The API request limit was reached. Try again later.");
+    throw new Error(`Weather service unavailable (${response.status}). Try again shortly.`);
+  }
+  // JSON decoding is also asynchronous, so we await it before reading its fields.
+  return await response.json();
+}
+
+async function loadLocation(place, signal) {
+  // First find coordinates, then request current weather in metric units.
+  const data = await fetchJSON("/data/2.5/weather", { lat:place.lat, lon:place.lon, units:"metric" }, signal);
+  if (signal.aborted) return; // An older result must not overwrite a newer scene.
+  const weather = data.weather?.[0];
+  if (!weather || !Number.isFinite(weather.id) || typeof weather.icon !== "string" ||
+      ![data.main?.temp, data.main?.feels_like, data.main?.humidity, data.wind?.speed, data.dt, data.timezone].every(Number.isFinite)) {
+    throw new Error("The weather service returned incomplete data. Please try again.");
+  }
+  const countries = new Intl.DisplayNames(["en"], { type:"region" });
+  renderWeather({
+    city:place.name, country:[place.state, countries.of(place.country)].filter(Boolean).join(", "),
+    temp:data.main.temp, feels:data.main.feels_like, humidity:data.main.humidity,
+    wind:data.wind.speed * 3.6, // Metric API wind is m/s; the card displays km/h.
+    visibility:Number.isFinite(data.visibility) ? data.visibility / 1000 : null,
+    description:weather.description, theme:themeFor(weather),
+    precipitation:weather.id >= 200 && weather.id < 600 ? "rain" : weather.id >= 600 && weather.id < 700 ? "snow" : "none",
+    observedAt:data.dt, timezone:data.timezone
+  });
+  $("locations").hidden = true;
+  setStatus("Current weather from OpenWeather. Search again to refresh.");
+}
+
+async function runRequest(work) {
+  activeRequest?.abort();
+  const controller = new AbortController();
+  activeRequest = controller;
+  setBusy(true);
+  setStatus("Opening your window…");
+  const timeout = setTimeout(() => controller.abort("timeout"), 12000);
+  try { await work(controller.signal); }
+  catch (error) {
+    if (activeRequest !== controller) return;
+    if (controller.signal.aborted && controller.signal.reason === "timeout") setStatus("That took too long. Please try again.", true);
+    else if (!controller.signal.aborted) setStatus(error instanceof TypeError ? "Could not connect. Check your connection and try again." : error.message, true);
+  } finally {
+    clearTimeout(timeout);
+    if (activeRequest === controller) { activeRequest = null; setBusy(false); }
+  }
+}
+
+$("search-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const city = $("city-input").value.trim();
+  if (!city) { setStatus("Type a city to open its window.", true); return; }
+  if (!hasKey) { setStatus("Add your OpenWeather API key in the script section of index.html, then reload to search live weather. The buttons below preview demo scenes.", true); return; }
+  $("locations").hidden = true;
+  runRequest(async (signal) => {
+    // Geocoding converts a name to coordinates. URLSearchParams safely encodes spaces
+    // and accents. We offer matches instead of guessing which 'Paris' you meant.
+    const places = await fetchJSON("/geo/1.0/direct", { q:city, limit:5 }, signal);
+    if (signal.aborted) return;
+    if (!Array.isArray(places) || places.length === 0) throw new Error("No city found. Try a city and country code, such as London, GB.");
+    if (places.length === 1) return await loadLocation(places[0], signal);
+    $("locations").replaceChildren();
+    for (const place of places) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = [place.name, place.state, place.country].filter(Boolean).join(", ");
+      button.addEventListener("click", () => {
+        $("locations").hidden = true;
+        $("city-input").focus();
+        runRequest((nextSignal) => loadLocation(place, nextSignal));
+      });
+      $("locations").append(button);
+    }
+    $("locations").hidden = false;
+    setStatus("Choose a matching city above.");
+    $("locations").querySelector("button").focus();
+  });
+});
+
+sceneButtons.forEach(button => button.addEventListener("click", () => {
+  activeRequest?.abort(); activeRequest = null; setBusy(false);
+  $("locations").hidden = true;
+  renderWeather(demos[button.dataset.scene], true);
+  setStatus(hasKey ? "Demo scene — sample data. Search a city for live weather." : "Demo weather. Add your API key in the script section of index.html for live searches.");
+}));
+
+// Optional sound: generate a quiet loop of filtered noise with the Web Audio API.
+// No downloads, dummy audio URLs or autoplay. Sound starts only after a click.
+function tuneSound() {
+  const rain = precipitation === "rain";
+  soundFilter.type = "lowpass";
+  soundFilter.frequency.setTargetAtTime(rain ? 1800 : 380, audioContext.currentTime, .5);
+  soundGain.gain.setTargetAtTime(rain ? .09 : .16, audioContext.currentTime, .5);
+}
+
+function updateSoundButton() {
+  $("sound-button").setAttribute("aria-pressed", String(soundOn));
+  $("sound-label").textContent = soundOn ? "Pause sound" : "Play sound";
+  $("play-icon").textContent = soundOn ? "Ⅱ" : "▶";
+}
+
+$("sound-button").addEventListener("click", async () => {
+  const button = $("sound-button"); button.disabled = true;
+  try {
+    if (!audioContext) {
+      const AudioClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioClass) throw new Error("This browser does not support ambient audio.");
+      audioContext = new AudioClass();
+      const buffer = audioContext.createBuffer(1, audioContext.sampleRate * 3, audioContext.sampleRate);
+      const samples = buffer.getChannelData(0);
+      for (let i = 0; i < samples.length; i++) samples[i] = Math.random() * 2 - 1;
+      noiseSource = audioContext.createBufferSource(); noiseSource.buffer = buffer; noiseSource.loop = true;
+      soundFilter = audioContext.createBiquadFilter(); soundGain = audioContext.createGain(); soundGain.gain.value = 0;
+      noiseSource.connect(soundFilter).connect(soundGain).connect(audioContext.destination);
+      noiseSource.start();
+    }
+    if (soundOn) { await audioContext.suspend(); soundOn = false; }
+    else { tuneSound(); await audioContext.resume(); soundOn = true; }
+    updateSoundButton();
+  } catch (error) { setStatus(error.message || "Audio could not start. Try again.", true); }
+  finally { button.disabled = false; }
+});
+
+// Pause when the tab is hidden. Returning never starts audio unexpectedly.
+document.addEventListener("visibilitychange", async () => {
+  if (document.hidden && soundOn) {
+    try { await audioContext.suspend(); soundOn = false; updateSoundButton(); }
+    catch { setStatus("Use Pause sound to stop the ambience.", true); }
+  }
+});
+
+for (let i = 0; i < 38; i++) {
+  const drop = document.createElement("span"); drop.className = "particle";
+  drop.style.setProperty("--x", `${Math.random() * 110}%`);
+  drop.style.setProperty("--duration", `${.7 + Math.random() * .7}s`);
+  drop.style.setProperty("--delay", `${-Math.random() * 10}s`);
+  $("particles").append(drop);
+}
+renderWeather(demos.rain, true);
+
+</script>
+</body>
+</html>
